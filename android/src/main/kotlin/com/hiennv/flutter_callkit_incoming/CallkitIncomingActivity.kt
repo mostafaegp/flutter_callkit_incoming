@@ -85,11 +85,13 @@ class CallkitIncomingActivity : Activity() {
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         requestedOrientation = if (!Utils.isTablet(this@CallkitIncomingActivity)) {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }else {
+        } else {
             ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             setTurnScreenOn(true)
@@ -98,23 +100,45 @@ class CallkitIncomingActivity : Activity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
             window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
         }
-        transparentStatusAndNavigation()
-        setContentView(R.layout.activity_callkit_incoming)
-        initView()
-        incomingData(intent)
+
+        // Remove the default CallKit UI
+        // setContentView(R.layout.activity_callkit_incoming) → Not needed anymore
+
+        // Instead of showing the default UI, launch the Flutter activity
+        openFlutterIncomingCallScreen()
+
+        // Register the broadcast receiver to listen for call end events
+        val intentFilter = IntentFilter("${packageName}.${ACTION_ENDED_CALL_INCOMING}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(
-                endedCallkitIncomingBroadcastReceiver,
-                IntentFilter("${packageName}.${ACTION_ENDED_CALL_INCOMING}"),
-                Context.RECEIVER_EXPORTED,
-            )
+            registerReceiver(endedCallkitIncomingBroadcastReceiver, intentFilter, Context.RECEIVER_EXPORTED)
         } else {
-            registerReceiver(
-                endedCallkitIncomingBroadcastReceiver,
-                IntentFilter("${packageName}.${ACTION_ENDED_CALL_INCOMING}")
-            )
+            registerReceiver(endedCallkitIncomingBroadcastReceiver, intentFilter)
         }
     }
+
+    /**
+     * Open the Flutter screen for incoming calls
+     */
+    private fun openFlutterIncomingCallScreen() {
+        val intent = Intent(this, FlutterActivity::class.java)
+        intent.putExtra("route", "/incoming_call") // Pass route to Flutter
+        startActivity(intent)
+        finish() // Close native activity after launching Flutter UI
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            if (call.method == "endCall") {
+                finish()
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
+    }
+
 
     private fun wakeLockRequest(duration: Long) {
 
