@@ -86,36 +86,25 @@ class CallkitIncomingActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        requestedOrientation = if (!Utils.isTablet(this@CallkitIncomingActivity)) {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
-
+        // Keep screen on during call
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             setTurnScreenOn(true)
         } else {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             window.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
             window.addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD)
         }
 
-        // Remove the default CallKit UI
-        // setContentView(R.layout.activity_callkit_incoming) → Not needed anymore
+        // ✅ Instead of showing a native layout, start a Flutter activity
+        val intent = FlutterActivity
+            .withNewEngine()
+            .initialRoute("/incoming_call") // Flutter UI route
+            .build(this)
+        startActivity(intent)
 
-        // Instead of showing the default UI, launch the Flutter activity
-        openFlutterIncomingCallScreen()
-
-        // Register the broadcast receiver to listen for call end events
-        val intentFilter = IntentFilter("${packageName}.${ACTION_ENDED_CALL_INCOMING}")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(endedCallkitIncomingBroadcastReceiver, intentFilter, Context.RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(endedCallkitIncomingBroadcastReceiver, intentFilter)
-        }
+        // ✅ Close the native activity after launching Flutter
+        finish()
     }
-
     /**
      * Open the Flutter screen for incoming calls
      */
